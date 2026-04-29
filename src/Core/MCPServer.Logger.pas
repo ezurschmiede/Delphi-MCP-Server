@@ -12,7 +12,7 @@ type
   TLogLevel = (Debug, Info, Warning, Error);
   {$SCOPEDENUMS OFF}
   
-  TLogMessageProc = reference to procedure(const Message: string);
+  TLogMessageProc = reference to procedure(Level: TLogLevel; const Message: string);
 
   TLogger = class
   private
@@ -192,7 +192,7 @@ begin
     end;
     
     if Assigned(FOnLogMessage) then
-      FOnLogMessage(LogLine);
+      FOnLogMessage(Level, LogLine);
   finally
     FLock.Leave;
   end;
