@@ -398,8 +398,7 @@ end;
 
 function TMCPIdHTTPServer.GetNextEventID: string;
 begin
-  Inc(FEventIDCounter);
-  Result := IntToStr(FEventIDCounter);
+  Result := AtomicIncrement(FEventIDCounter).ToString;
 end;
 
 function TMCPIdHTTPServer.AcceptsSSE(const AcceptHeader: string): Boolean;
