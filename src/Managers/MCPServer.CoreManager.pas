@@ -15,9 +15,9 @@ type
   TMCPCoreManager = class(TInterfacedObject, IMCPCapabilityManager)
   private
     FSessionID: string;
-    FSettings: TMCPSettings;
+    FSettings: TMCPCustomSettings;
   public
-    constructor Create(ASettings: TMCPSettings);
+    constructor Create(ASettings: TMCPCustomSettings);
     
     function GetCapabilityName: string;
     function HandlesMethod(const Method: string): Boolean;
@@ -33,7 +33,7 @@ implementation
 
 { TMCPCoreManager }
 
-constructor TMCPCoreManager.Create(ASettings: TMCPSettings);
+constructor TMCPCoreManager.Create(ASettings: TMCPCustomSettings);
 begin
   inherited Create;
   FSettings := ASettings;

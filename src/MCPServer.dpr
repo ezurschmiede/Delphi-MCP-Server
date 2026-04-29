@@ -1,4 +1,4 @@
-program MCPServer;
+﻿program MCPServer;
 
 {$APPTYPE CONSOLE}
 
@@ -36,7 +36,7 @@ uses
 
 var
   Server: TMCPIdHTTPServer;
-  Settings: TMCPSettings;
+  Settings: TMCPCustomSettings;
   ManagerRegistry: IMCPManagerRegistry;
   CoreManager: IMCPCapabilityManager;
   ToolsManager: IMCPCapabilityManager;

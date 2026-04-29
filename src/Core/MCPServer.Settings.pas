@@ -8,7 +8,7 @@ uses
   System.IOUtils;
 
 type
-  TMCPSettings = class
+  TMCPCustomSettings = class
   private
     FPort: Integer;
     FHost: string;
@@ -17,22 +17,17 @@ type
     FEndpoint: string;
     FCorsEnabled: Boolean;
     FCorsAllowedOrigins: string;
-    FSettingsFile: string;
     FSSLEnabled: Boolean;
     FSSLCertFile: string;
     FSSLKeyFile: string;
     FSSLRootCertFile: string;
+    FSettingsFile: string;
     function GetProtocol: string;
-    
+
     procedure LoadDefaults;
-    procedure CreateDefaultSettingsFile;
   public
-    constructor Create(const ASettingsFile: string = '');
-    destructor Destroy; override;
-    
-    procedure LoadFromFile;
-    procedure SaveToFile;
-    
+    constructor Create; virtual;
+
     property Port: Integer read FPort write FPort;
     property Host: string read FHost write FHost;
     property Protocol: string read GetProtocol;
@@ -48,39 +43,26 @@ type
     property SSLRootCertFile: string read FSSLRootCertFile write FSSLRootCertFile;
   end;
 
+  TMCPSettings = class(TMCPCustomSettings)
+  private
+    FSettingsFile: string;
+  protected
+    procedure CreateDefaultSettingsFile;
+  public
+    constructor Create(const ASettingsFile: string = '');
+
+    procedure LoadFromFile;
+    procedure SaveToFile;
+  end;
+
 implementation
 
 uses
   MCPServer.Logger;
 
-{ TMCPSettings }
+{ TMCPCustomSettings }
 
-constructor TMCPSettings.Create(const ASettingsFile: string);
-begin
-  inherited Create;
-  
-  if ASettingsFile = '' then
-    FSettingsFile := TPath.Combine(ExtractFilePath(ParamStr(0)), 'settings.ini')
-  else
-    FSettingsFile := ASettingsFile;
-    
-  LoadDefaults;
-  
-  if not TFile.Exists(FSettingsFile) then
-  begin
-    TLogger.Info('Settings file not found. Creating default settings: ' + FSettingsFile);
-    CreateDefaultSettingsFile;
-  end;
-  
-  LoadFromFile;
-end;
-
-destructor TMCPSettings.Destroy;
-begin
-  inherited;
-end;
-
-procedure TMCPSettings.LoadDefaults;
+procedure TMCPCustomSettings.LoadDefaults;
 begin
   FPort := 3000;
   FHost := 'localhost';
@@ -95,12 +77,37 @@ begin
   FSSLRootCertFile := '';
 end;
 
-function TMCPSettings.GetProtocol: string;
+constructor TMCPCustomSettings.Create;
 begin
-  if FSSLEnabled then
-    Result := 'https'
+  inherited;
+  LoadDefaults;
+end;
+
+function TMCPCustomSettings.GetProtocol: string;
+const
+  Prot: array[Boolean] of String = ('http', 'https');
+begin
+  Result := Prot[FSSLEnabled];
+end;
+
+{ TMCPSettings }
+
+constructor TMCPSettings.Create(const ASettingsFile: string);
+begin
+  inherited Create;
+
+  if ASettingsFile = '' then
+    FSettingsFile := TPath.Combine(ExtractFilePath(ParamStr(0)), 'settings.ini')
   else
-    Result := 'http';
+    FSettingsFile := ASettingsFile;
+
+  if not TFile.Exists(FSettingsFile) then
+  begin
+    TLogger.Info('Settings file not found. Creating default settings: ' + FSettingsFile);
+    CreateDefaultSettingsFile;
+  end;
+
+  LoadFromFile;
 end;
 
 procedure TMCPSettings.CreateDefaultSettingsFile;
@@ -113,12 +120,12 @@ begin
     IniFile.WriteString('Server', 'Name', FServerName);
     IniFile.WriteString('Server', 'Version', FServerVersion);
     IniFile.WriteString('Server', 'Endpoint', FEndpoint);
-    
+
     IniFile.WriteString('CORS', '; Cross-Origin Resource Sharing configuration', '');
     IniFile.WriteBool('CORS', 'Enabled', FCorsEnabled);
     IniFile.WriteString('CORS', '; Comma-separated list of allowed origins', '');
     IniFile.WriteString('CORS', 'AllowedOrigins', FCorsAllowedOrigins);
-    
+
     IniFile.WriteString('SSL', '; SSL/TLS configuration (optional)', '');
     IniFile.WriteBool('SSL', 'Enabled', FSSLEnabled);
     IniFile.WriteString('SSL', 'CertFile', FSSLCertFile);
@@ -133,7 +140,7 @@ procedure TMCPSettings.LoadFromFile;
 begin
   if not TFile.Exists(FSettingsFile) then
     Exit;
-    
+
   var IniFile := TIniFile.Create(FSettingsFile);
   try
     FPort := IniFile.ReadInteger('Server', 'Port', FPort);
@@ -141,15 +148,15 @@ begin
     FServerName := IniFile.ReadString('Server', 'Name', FServerName);
     FServerVersion := IniFile.ReadString('Server', 'Version', FServerVersion);
     FEndpoint := IniFile.ReadString('Server', 'Endpoint', FEndpoint);
-    
+
     FCorsEnabled := IniFile.ReadBool('CORS', 'Enabled', FCorsEnabled);
     FCorsAllowedOrigins := IniFile.ReadString('CORS', 'AllowedOrigins', FCorsAllowedOrigins);
-    
+
     FSSLEnabled := IniFile.ReadBool('SSL', 'Enabled', FSSLEnabled);
     FSSLCertFile := IniFile.ReadString('SSL', 'CertFile', FSSLCertFile);
     FSSLKeyFile := IniFile.ReadString('SSL', 'KeyFile', FSSLKeyFile);
     FSSLRootCertFile := IniFile.ReadString('SSL', 'RootCertFile', FSSLRootCertFile);
-    
+
     TLogger.Info('Settings loaded from: ' + FSettingsFile);
     TLogger.Info('Server: ' + Protocol + '://' + FHost + ':' + IntToStr(FPort));
     if FSSLEnabled then
@@ -175,10 +182,10 @@ begin
     IniFile.WriteString('Server', 'Name', FServerName);
     IniFile.WriteString('Server', 'Version', FServerVersion);
     IniFile.WriteString('Server', 'Endpoint', FEndpoint);
-    
+
     IniFile.WriteBool('CORS', 'Enabled', FCorsEnabled);
     IniFile.WriteString('CORS', 'AllowedOrigins', FCorsAllowedOrigins);
-    
+
     IniFile.WriteBool('SSL', 'Enabled', FSSLEnabled);
     IniFile.WriteString('SSL', 'CertFile', FSSLCertFile);
     IniFile.WriteString('SSL', 'KeyFile', FSSLKeyFile);

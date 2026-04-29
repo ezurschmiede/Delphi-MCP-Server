@@ -42,7 +42,7 @@ type
     FJsonRpcProcessor: TMCPJsonRpcProcessor;
     FPort: Word;
     FActive: Boolean;
-    FSettings: TMCPSettings;
+    FSettings: TMCPCustomSettings;
     FEventIDCounter: Int64;
     procedure ConfigureSSL;
     procedure HandleQuerySSLPort(APort: Word; var VUseSSL: Boolean);
@@ -65,7 +65,7 @@ type
     property Active: Boolean read FActive;
     property ManagerRegistry: IMCPManagerRegistry read FManagerRegistry write FManagerRegistry;
     property CoreManager: IMCPCapabilityManager read FCoreManager write FCoreManager;
-    property Settings: TMCPSettings read FSettings write FSettings;
+    property Settings: TMCPCustomSettings read FSettings write FSettings;
   end;
 
 implementation
