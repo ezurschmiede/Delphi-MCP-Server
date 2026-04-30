@@ -5,6 +5,7 @@
 uses
   System.SysUtils,
   System.SyncObjs,
+  System.JSON,
   {$IFDEF MSWINDOWS}
   Winapi.Windows,
   {$ENDIF}
@@ -31,14 +32,14 @@ uses
   MCPServer.Tool.GetTime in 'Tools\MCPServer.Tool.GetTime.pas',
   MCPServer.Tool.ListFiles in 'Tools\MCPServer.Tool.ListFiles.pas',
   MCPServer.Tool.Calculate in 'Tools\MCPServer.Tool.Calculate.pas',
-  MCPServer.Resource.Logs in 'Resources\MCPServer.Resource.Logs.pas',
-  MCPServer.Resource.Project in 'Resources\MCPServer.Resource.Project.pas';
+  MCPServer.Resource.Logs in 'Resources\MCPServer.Resource.Logs.pas'{,
+  MCPServer.Resource.Project in 'Resources\MCPServer.Resource.Project.pas'};
 
 var
   Server: TMCPIdHTTPServer;
   Settings: TMCPCustomSettings;
   ManagerRegistry: IMCPManagerRegistry;
-  CoreManager: IMCPCapabilityManager;
+  CoreManager: TMCPCoreManager;
   ToolsManager: IMCPCapabilityManager;
   ResourcesManager: IMCPCapabilityManager;
   ShutdownEvent: TEvent;
@@ -74,39 +75,55 @@ end;
 procedure RunHTTPServer;
 begin
   Settings := TMCPSettings.Create;
-
-  TLogger.Info('Delphi MCP Server v' + Settings.ServerVersion);
-  TLogger.Info('================================');
-  TLogger.Info('Model Context Protocol Server');
-  TLogger.Info('Transport: HTTP');
-  TLogger.Info('Listening on port ' + Settings.Port.ToString);
-
-  ManagerRegistry := TMCPManagerRegistry.Create;
-  CoreManager := TMCPCoreManager.Create(Settings);
-  ToolsManager := TMCPToolsManager.Create;
-  ResourcesManager := TMCPResourcesManager.Create;
-
-  ManagerRegistry.RegisterManager(CoreManager);
-  ManagerRegistry.RegisterManager(ToolsManager);
-  ManagerRegistry.RegisterManager(ResourcesManager);
-
-  Server := TMCPIdHTTPServer.Create(nil);
   try
-    Server.Settings := Settings;
-    Server.ManagerRegistry := ManagerRegistry;
-    Server.CoreManager := CoreManager;
+    TLogger.Info('Delphi MCP Server v' + Settings.ServerVersion);
+    TLogger.Info('================================');
+    TLogger.Info('Model Context Protocol Server');
+    TLogger.Info('Transport: HTTP');
+    TLogger.Info('Listening on port ' + Settings.Port.ToString);
 
-    Server.Start;
+    Server := TMCPIdHTTPServer.Create(nil);
+    try
+      Server.Settings := Settings;
+      Server.CoreManager := TMCPSessionCoreManager.Create(Server.Settings);
 
-    TLogger.Info('Server started. Press CTRL+C to stop...');
+      TMCPSessionCoreManager(Server.CoreManager).OnInitSession := procedure(const Session: TMCPSession; const SessionId: String;
+        const Params: TJSONObject; const AuthHeader: string)
+        begin
+          TLogger.Debug('OnInitSession: session-id: ' + SessionId + '; auth-header: ' + AuthHeader);
 
-    ShutdownEvent.WaitFor(INFINITE);
+          if AuthHeader = 'Bearer 1234' then
+          begin
+            // the session contains all global TMCPRegistry registered tools and resources allready.
+            // here one can add tools and resources based on AuthHeader permission to the new session
+            // tools and resources added to a session are available on this session only
 
-    TLogger.Info('Shutting down server...');
-    Server.Stop;
-    TLogger.Info('Server stopped successfully');
+            Session.RegisterTool(TListFilesTool.CreateForSession(Session));
+            Session.RegisterResource(TLogsRecentResource.CreateForSession(Session));
+          end;
+        end;
+
+      TMCPSessionCoreManager(Server.CoreManager).OnValidateAuth := procedure(const Session: TMCPSession; const AuthHeader: string;
+        var IsAuth: Boolean)
+        begin
+          TLogger.Debug('OnValidateAuth: auth-header: ' + AuthHeader);
+
+          IsAuth := AuthHeader = 'Bearer 1234';
+        end;
+
+      Server.Start;
+
+      TLogger.Info('Server started. Press CTRL+C to stop...');
+
+      ShutdownEvent.WaitFor(INFINITE);
+
+      TLogger.Info('Shutting down server...');
+      Server.Stop;
+      TLogger.Info('Server stopped successfully');
+    finally
+      Server.Free;
+    end;
   finally
-    Server.Free;
     Settings.Free;
   end;
 end;

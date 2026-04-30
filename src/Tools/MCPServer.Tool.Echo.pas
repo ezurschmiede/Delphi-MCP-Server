@@ -45,9 +45,9 @@ end;
 
 initialization
   TMCPRegistry.RegisterTool('echo',
-    function: IMCPTool
+    function(const Session: TMCPCustomSession = nil): IMCPTool
     begin
-      Result := TEchoTool.Create;
+      Result := TEchoTool.CreateForSession(Session);
     end
   );
 

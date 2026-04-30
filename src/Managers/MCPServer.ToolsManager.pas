@@ -22,15 +22,19 @@ type
     function CreateToolJSON(const Tool: IMCPTool): TJSONObject;
   private
     FTools: TDictionary<string, IMCPTool>;
-    procedure RegisterTool(const Tool: IMCPTool);
+    FSession: TMCPCustomSession;
     procedure RegisterBuiltInTools;
   public
     constructor Create;
+    constructor CreateForSession(const Session: TMCPCustomSession);
+
     destructor Destroy; override;
+
+    procedure RegisterTool(const Tool: IMCPTool);
     
     function GetCapabilityName: string;
     function HandlesMethod(const Method: string): Boolean;
-    function ExecuteMethod(const Method: string; const Params: System.JSON.TJSONObject): TValue;
+    function ExecuteMethod(const Method: string; const Params: System.JSON.TJSONObject; var SessionID: string; const AuthHeader: string): TValue;
     
     function ListTools: TValue;
     function CallTool(const Params: System.JSON.TJSONObject): TValue;
@@ -50,6 +54,12 @@ begin
   RegisterBuiltInTools;
 end;
 
+constructor TMCPToolsManager.CreateForSession(const Session: TMCPCustomSession);
+begin
+  FSession := Session;
+  Create;
+end;
+
 destructor TMCPToolsManager.Destroy;
 begin
   FTools.Free;
@@ -66,7 +76,7 @@ begin
   Result := (Method = 'tools/list') or (Method = 'tools/call');
 end;
 
-function TMCPToolsManager.ExecuteMethod(const Method: string; const Params: System.JSON.TJSONObject): TValue;
+function TMCPToolsManager.ExecuteMethod(const Method: string; const Params: System.JSON.TJSONObject; var SessionID: string; const AuthHeader: string): TValue;
 begin
   if Method = 'tools/list' then
     Result := ListTools
@@ -85,7 +95,7 @@ procedure TMCPToolsManager.RegisterBuiltInTools;
 begin
   for var ToolName in TMCPRegistry.GetToolNames do
   begin
-    var Tool := TMCPRegistry.CreateTool(ToolName);
+    var Tool := TMCPRegistry.CreateTool(ToolName, FSession);
     RegisterTool(Tool);
   end;
 end;

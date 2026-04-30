@@ -6,6 +6,7 @@ uses
   System.SysUtils,
   System.DateUtils,
   System.JSON,
+  MCPServer.Types,
   MCPServer.Tool.Base;
 
 type
@@ -40,9 +41,9 @@ end;
 
 initialization
   TMCPRegistry.RegisterTool('get_time',
-    function: IMCPTool
+    function(const Session: TMCPCustomSession = nil): IMCPTool
     begin
-      Result := TGetTimeTool.Create;
+      Result := TGetTimeTool.CreateForSession(Session);
     end
   );
 

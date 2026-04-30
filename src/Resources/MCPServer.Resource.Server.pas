@@ -6,6 +6,7 @@ uses
   System.SysUtils,
   System.DateUtils,
   System.Generics.Collections,
+  MCPServer.Types,
   MCPServer.Resource.Base;
 
 type
@@ -84,9 +85,9 @@ begin
     URI := 'server://status';
 
   TMCPRegistry.RegisterResource(URI,
-    function: IMCPResource
+    function(const Session: TMCPCustomSession = nil): IMCPResource
     begin
-      Result := TServerStatusResource.Create;
+      Result := TServerStatusResource.CreateForSession(Session);
     end
   );
 end;

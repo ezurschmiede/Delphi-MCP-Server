@@ -82,9 +82,9 @@ end;
 
 initialization
   TMCPRegistry.RegisterTool('calculate',
-    function: IMCPTool
+    function(const Session: TMCPCustomSession = nil): IMCPTool
     begin
-      Result := TCalculateTool.Create;
+      Result := TCalculateTool.CreateForSession(Session);
     end
   );
 

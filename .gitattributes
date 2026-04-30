@@ -1,0 +1,14 @@
+# all text files
+* text=auto
+
+# sources
+*.pas text
+*.dpk text
+*.dpr text
+*.dfm text
+*.pas.res text
+*.dproj text
+
+# binaries
+*.exe binary
+*.dll binary

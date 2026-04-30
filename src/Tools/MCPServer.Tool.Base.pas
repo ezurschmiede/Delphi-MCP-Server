@@ -5,7 +5,8 @@ interface
 uses
   System.SysUtils,
   System.Rtti,
-  System.JSON;
+  System.JSON,
+  MCPServer.Types;
 
 type
   IMCPTool = interface
@@ -29,9 +30,11 @@ type
     FName: string;
     FTitle: string;
     FDescription: string;
+    FSession: TMCPCustomSession;
     function BuildSchema: TJSONObject; virtual; abstract;
   public
     constructor Create; virtual;
+    constructor CreateForSession(const Session: TMCPCustomSession); virtual;
 
     function GetName: string;
     function GetTitle: string;
@@ -46,10 +49,12 @@ type
     FName: string;
     FTitle: string;
     FDescription: string;
+    FSession: TMCPCustomSession;
     function ExecuteWithParams(const Params: T): string;virtual; abstract;
     function GetParamsClass: TClass; virtual;
   public
     constructor Create; virtual;
+    constructor CreateForSession(const Session: TMCPCustomSession); virtual;
 
     function GetName: string;
     function GetTitle: string;
@@ -64,9 +69,11 @@ type
     FName: string;
     FTitle: string;
     FDescription: string;
+    FSession: TMCPCustomSession;
     function ExecuteWithParams(const Params: T): R;virtual; abstract;
   public
     constructor Create; virtual;
+    constructor CreateForSession(const Session: TMCPCustomSession); virtual;
 
     function GetName: string;
     function GetTitle: string;
@@ -108,6 +115,12 @@ end;
 function TMCPToolBase.GetOutputSchema: TJSONObject;
 begin
   result := nil;
+end;
+
+constructor TMCPToolBase.CreateForSession(const Session: TMCPCustomSession);
+begin
+  FSession := Session;
+  Create;
 end;
 
 function TMCPToolBase.GetDescription: string;
@@ -155,6 +168,12 @@ begin
   Result := TMCPSchemaGenerator.GenerateSchema(T);
 end;
 
+constructor TMCPToolBase<T>.CreateForSession(const Session: TMCPCustomSession);
+begin
+  FSession := Session;
+  Create;
+end;
+
 function TMCPToolBase<T>.Execute(const Arguments: TJSONObject): TValue;
 var
   ParamsInstance: T;
@@ -178,6 +197,12 @@ end;
 constructor TMCPToolBase<T, R>.Create;
 begin
   inherited Create;
+end;
+
+constructor TMCPToolBase<T, R>.CreateForSession(const Session: TMCPCustomSession);
+begin
+  FSession := Session;
+  Create;
 end;
 
 function TMCPToolBase<T, R>.Execute(const Arguments: TJSONObject): TValue;

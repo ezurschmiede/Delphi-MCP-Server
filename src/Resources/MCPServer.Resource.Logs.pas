@@ -7,6 +7,7 @@ uses
   System.Classes,
   System.Generics.Collections,
   System.SyncObjs,
+  MCPServer.Types,
   MCPServer.Resource.Base;
 
 type
@@ -211,6 +212,8 @@ begin
   Logs := TLogBuffer.Instance.GetLogs(100);
   try
     Result.Entries.AddRange(Logs.ToArray);
+    Logs.OwnsObjects := false; // FIX AV, ownership is on Result now
+
     Result.TotalCount := Logs.Count;
     Result.FilteredCount := Logs.Count;
   finally
@@ -230,13 +233,14 @@ initialization
   TLogBuffer.Instance.AddLog('INFO', 'Server listening on port 8080', 'SERVER');
   
   // Register Logs resources
-  TMCPRegistry.RegisterResource('logs://recent',
-    function: IMCPResource
-    begin
-      Result := TLogsRecentResource.Create;
-    end
-  );
-  
+  // register log resources for auth. users only
+//  TMCPRegistry.RegisterResource('logs://recent',
+//    function(const Session: TMCPCustomSession = nil): IMCPResource
+//    begin
+//      Result := TLogsRecentResource.CreateForSession(Session);
+//    end
+//  );
+
 
 finalization
   TLogBuffer.Finalize;

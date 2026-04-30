@@ -93,11 +93,12 @@ begin
 end;
 
 initialization
-  TMCPRegistry.RegisterTool('list_files',
-    function: IMCPTool
-    begin
-      Result := TListFilesTool.Create;
-    end
-  );
+// for authenticated users only
+//  TMCPRegistry.RegisterTool('list_files',
+//    function(const Session: TMCPCustomSession = nil): IMCPTool
+//    begin
+//      Result := TListFilesTool.CreateForSession(Session);
+//    end
+//  );
 
 end.
