@@ -19,26 +19,27 @@ uses
   MCPServer.ResourcesManager;
 
 type
-  TMCPCoreManager = class;
+  TMCPSessionCoreManager = class;
 
   TMCPSessionClass = class of TMCPSession;
   TMCPSession = class(TMCPCustomSession)
   private
-    FCoreManager: TMCPCoreManager;
+    FCoreManager: TMCPSessionCoreManager;
     FManagerRegistry: IMCPManagerRegistry;
     FToolsManager: TMCPToolsManager;
     FResourcesManager: TMCPResourcesManager;
     FProcessor: TMCPJsonRpcProcessor;
   public
-    constructor Create(const ACoreManager: TMCPCoreManager);
+    constructor Create(const ACoreManager: TMCPSessionCoreManager);
     destructor Destroy; override;
 
-    procedure Init(const Params: TJSONObject; const AuthHeader: string); virtual;
+    procedure Init(const SessionId: String; const Params: TJSONObject; const AuthHeader: string); virtual;
     function ValidateAuth(const AuthHeader: string): Boolean; virtual;
 
     procedure RegisterTool(const Tool: IMCPTool);
     procedure RegisterResource(const Resource: IMCPResource);
 
+    property CoreManager: TMCPSessionCoreManager read FCoreManager;
     property ManagerRegistry: IMCPManagerRegistry read FManagerRegistry;
     property ToolsManager: TMCPToolsManager read FToolsManager;
     property ResourcesManager: TMCPResourcesManager read FResourcesManager;
@@ -50,6 +51,7 @@ type
   private
     FSettings: TMCPCustomSettings;
   protected
+    procedure InitSession(const Session: TMCPSession; const SessionId: String; const Params: TJSONObject; const AuthHeader: string); virtual;
     function ValidateAuth(const Session: TMCPSession; const AuthHeader: string): Boolean; virtual;
     function CreateNewSession(const Params: TJSONObject; const AuthHeader: string): string; virtual;
   public
@@ -81,6 +83,7 @@ type
   protected
     function GetSessionClass: TMCPSessionClass; virtual;
     function ValidateAuth(const Session: TMCPSession; const AuthHeader: string): Boolean; override;
+    procedure InitSession(const Session: TMCPSession; const SessionId: String; const Params: TJSONObject; const AuthHeader: string); override;
     function CreateNewSession(const Params: TJSONObject; const AuthHeader: string): string; override;
   public
     constructor Create(ASettings: TMCPCustomSettings); override;
@@ -229,6 +232,12 @@ begin
   end;
 end;
 
+procedure TMCPCoreManager.InitSession(const Session: TMCPSession; const SessionId: String; const Params: TJSONObject;
+  const AuthHeader: string);
+begin
+  //
+end;
+
 function TMCPCoreManager.Ping: TValue;
 begin
   TLogger.Info('MCP Ping called');
@@ -263,10 +272,7 @@ begin
 
   var Session := GetSessionClass.Create(self);
   try
-    Session.Init(Params, AuthHeader);
-
-    if Assigned(OnInitSession) then
-      OnInitSession(Session, Result, Params, AuthHeader);
+    Session.Init(Result, Params, AuthHeader);
 
     FSessionLock.Enter;
     try
@@ -306,6 +312,13 @@ begin
   Result := TMCPSession;
 end;
 
+procedure TMCPSessionCoreManager.InitSession(const Session: TMCPSession; const SessionId: String; const Params: TJSONObject;
+  const AuthHeader: string);
+begin
+  if Assigned(OnInitSession) then
+    OnInitSession(Session, SessionId, Params, AuthHeader);
+end;
+
 function TMCPSessionCoreManager.ValidateAuth(const Session: TMCPSession; const AuthHeader: string): Boolean;
 begin
   Result := inherited ValidateAuth(Session, AuthHeader);
@@ -316,7 +329,7 @@ end;
 
 { TMCPSession }
 
-constructor TMCPSession.Create(const ACoreManager: TMCPCoreManager);
+constructor TMCPSession.Create(const ACoreManager: TMCPSessionCoreManager);
 begin
   inherited Create;
   FCoreManager := ACoreManager;
@@ -336,8 +349,10 @@ begin
   inherited;
 end;
 
-procedure TMCPSession.Init(const Params: TJSONObject; const AuthHeader: string);
+procedure TMCPSession.Init(const SessionId: String; const Params: TJSONObject; const AuthHeader: string);
 begin
+  FCoreManager.InitSession(self, SessionId, Params, AuthHeader);
+
   // override and add session specific tools and resources. one can validate auth here, too
   //
   // TMCPSession.RegisterTool(TCalculateTool.CreateForSession(self));
