@@ -1,12 +1,10 @@
 unit MCPServer.Resource.Base;
-
 interface
-
 uses
   System.SysUtils,
   System.Rtti,
-  System.JSON;
-
+  System.JSON,
+  MCPServer.Types;
 type
   IMCPResource = interface
     ['{A7B8C9D0-E1F2-3456-7890-BCDEF1234567}']
@@ -28,9 +26,11 @@ type
     FName: string;
     FDescription: string;
     FMimeType: string;
+    FSession: TMCPCustomSession;
     function GetResourceData: T; virtual; abstract;
   public
     constructor Create; virtual;
+    constructor CreateForSession(const Session: TMCPCustomSession); virtual;
     destructor Destroy; override;
     
     function GetURI: string;
@@ -39,7 +39,6 @@ type
     function GetMimeType: string;
     function Read: string;
   end;
-
   TResourceContent = class
   private
     FURI: string;
@@ -50,44 +49,40 @@ type
     property MimeType: string read FMimeType write FMimeType;
     property Text: string read FText write FText;
   end;
-
 implementation
-
 uses
   MCPServer.Serializer;
-
 { TMCPResourceBase<T> }
-
 constructor TMCPResourceBase<T>.Create;
 begin
   inherited;
+end;
+constructor TMCPResourceBase<T>.CreateForSession(const Session: TMCPCustomSession);
+begin
+  FSession := Session;
+  Create;
 end;
 
 destructor TMCPResourceBase<T>.Destroy;
 begin
   inherited;
 end;
-
 function TMCPResourceBase<T>.GetURI: string;
 begin
   Result := FURI;
 end;
-
 function TMCPResourceBase<T>.GetName: string;
 begin
   Result := FName;
 end;
-
 function TMCPResourceBase<T>.GetDescription: string;
 begin
   Result := FDescription;
 end;
-
 function TMCPResourceBase<T>.GetMimeType: string;
 begin
   Result := FMimeType;
 end;
-
 function TMCPResourceBase<T>.Read: string;
 var
   ResourceData: T;
@@ -129,5 +124,4 @@ begin
     ResourceData.Free;
   end;
 end;
-
 end.

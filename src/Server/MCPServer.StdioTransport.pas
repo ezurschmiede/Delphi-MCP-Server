@@ -55,7 +55,8 @@ begin
 
       TLogger.Info('Received: ' + InputLine);
 
-      var Response := FJsonRpcProcessor.ProcessRequest(InputLine, '');
+      var SessionID := '';
+      var Response := FJsonRpcProcessor.ProcessRequest(InputLine, SessionID, '');
 
       if Response <> '' then
       begin

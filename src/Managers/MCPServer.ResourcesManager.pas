@@ -1,7 +1,5 @@
 unit MCPServer.ResourcesManager;
-
 interface
-
 uses
   System.SysUtils,
   System.Classes,
@@ -11,38 +9,39 @@ uses
   MCPServer.Types,
   MCPServer.Logger,
   MCPServer.Resource.Base;
-
 type
   TMCPResourcesManager = class(TInterfacedObject, IMCPCapabilityManager)
   private
     FResources: TDictionary<string, IMCPResource>;
-    procedure RegisterResource(const Resource: IMCPResource);
+    FSession: TMCPCustomSession;
     procedure RegisterBuiltInResources;
   public
     constructor Create;
+    constructor CreateForSession(const Session: TMCPCustomSession); virtual;
     destructor Destroy; override;
-    
+    procedure RegisterResource(const Resource: IMCPResource);
     function GetCapabilityName: string;
     function HandlesMethod(const Method: string): Boolean;
-    function ExecuteMethod(const Method: string; const Params: System.JSON.TJSONObject): TValue;
+    function ExecuteMethod(const Method: string; const Params: System.JSON.TJSONObject; var SessionID: string; const AuthHeader: string): TValue;
     
     function ListResources: TValue;
     function ReadResource(const Params: System.JSON.TJSONObject): TValue;
     function ListResourceTemplates: TValue;
   end;
-
 implementation
-
 uses
   MCPServer.Registration;
-
 { TMCPResourcesManager }
-
 constructor TMCPResourcesManager.Create;
 begin
   inherited;
   FResources := TDictionary<string, IMCPResource>.Create;
   RegisterBuiltInResources;
+end;
+constructor TMCPResourcesManager.CreateForSession(const Session: TMCPCustomSession);
+begin
+  FSession := Session;
+  Create;
 end;
 
 destructor TMCPResourcesManager.Destroy;
@@ -50,20 +49,18 @@ begin
   FResources.Free;
   inherited;
 end;
-
 function TMCPResourcesManager.GetCapabilityName: string;
 begin
   Result := 'resources';
 end;
-
 function TMCPResourcesManager.HandlesMethod(const Method: string): Boolean;
 begin
   Result := (Method = 'resources/list') or 
             (Method = 'resources/read') or 
             (Method = 'resources/templates/list');
 end;
-
-function TMCPResourcesManager.ExecuteMethod(const Method: string; const Params: System.JSON.TJSONObject): TValue;
+function TMCPResourcesManager.ExecuteMethod(const Method: string; const Params: System.JSON.TJSONObject; var SessionID: string;
+  const AuthHeader: string): TValue;
 begin
   if Method = 'resources/list' then
     Result := ListResources
@@ -74,20 +71,17 @@ begin
   else
     raise Exception.CreateFmt('Method %s not handled by %s', [Method, GetCapabilityName]);
 end;
-
 procedure TMCPResourcesManager.RegisterResource(const Resource: IMCPResource);
 begin
   FResources.Add(Resource.URI, Resource);
 end;
-
 procedure TMCPResourcesManager.RegisterBuiltInResources;
 begin
   for var ResourceURI in TMCPRegistry.GetResourceURIs do
   begin
-    RegisterResource(TMCPRegistry.CreateResource(ResourceURI));
+    RegisterResource(TMCPRegistry.CreateResource(ResourceURI, FSession));
   end;
 end;
-
 function TMCPResourcesManager.ListResources: TValue;
 begin
   TLogger.Info('MCP ListResources called');
@@ -113,7 +107,6 @@ begin
     raise;
   end;
 end;
-
 function TMCPResourcesManager.ReadResource(const Params: System.JSON.TJSONObject): TValue;
 begin
   var URIValue := Params.GetValue('uri');
@@ -162,7 +155,6 @@ begin
     raise;
   end;
 end;
-
 function TMCPResourcesManager.ListResourceTemplates: TValue;
 begin
   TLogger.Info('MCP ListResourceTemplates called');
@@ -180,5 +172,4 @@ begin
     raise;
   end;
 end;
-
 end.

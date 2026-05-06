@@ -5,15 +5,16 @@ interface
 uses
   System.SysUtils,
   System.Generics.Collections,
+  MCPServer.Types,
   MCPServer.Tool.Base,
   MCPServer.Resource.Base,
   MCPServer.Logger;
 
 type
   TMCPToolClass = class of TMCPToolBase;
-  
-  TMCPToolFactory = reference to function: IMCPTool;
-  TMCPResourceFactory = reference to function: IMCPResource;
+
+  TMCPToolFactory = reference to function(const Session: TMCPCustomSession = nil): IMCPTool;
+  TMCPResourceFactory = reference to function(const Session: TMCPCustomSession = nil): IMCPResource;
 
   TMCPRegistry = class
   private
@@ -25,8 +26,8 @@ type
     class procedure RegisterTool(const Name: string; Factory: TMCPToolFactory);
     class procedure RegisterResource(const URI: string; Factory: TMCPResourceFactory);
     
-    class function CreateTool(const Name: string): IMCPTool;
-    class function CreateResource(const URI: string): IMCPResource;
+    class function CreateTool(const Name: string; const Session: TMCPCustomSession = nil): IMCPTool;
+    class function CreateResource(const URI: string; const Session: TMCPCustomSession = nil): IMCPResource;
     
     class function GetToolNames: TArray<string>;
     class function GetResourceURIs: TArray<string>;
@@ -64,26 +65,26 @@ begin
   TLogger.Info('Registered resource: ' + URI);
 end;
 
-class function TMCPRegistry.CreateTool(const Name: string): IMCPTool;
+class function TMCPRegistry.CreateTool(const Name: string; const Session: TMCPCustomSession = nil): IMCPTool;
 var
   Factory: TMCPToolFactory;
 begin
   EnsureInitialized;
 
   if FTools.TryGetValue(Name, Factory) then
-    Result := Factory()
+    Result := Factory(Session)
   else
     raise Exception.CreateFmt('Tool not found: %s', [Name]);
 end;
 
-class function TMCPRegistry.CreateResource(const URI: string): IMCPResource;
+class function TMCPRegistry.CreateResource(const URI: string; const Session: TMCPCustomSession): IMCPResource;
 var
   Factory: TMCPResourceFactory;
 begin
   EnsureInitialized;
 
   if FResources.TryGetValue(URI, Factory) then
-    Result := Factory()
+    Result := Factory(Session)
   else
     raise Exception.CreateFmt('Resource not found: %s', [URI]);
 end;

@@ -11,6 +11,9 @@ const
   MCP_PROTOCOL_VERSION = '2025-06-18';
 
 type
+  TMCPCustomSession = class(TObject)
+  end;
+
   OptionalAttribute = class(TCustomAttribute)
   end;
 
@@ -40,7 +43,7 @@ type
     ['{E5F7C3A1-8B4D-4F6E-9C2A-1D3E5F7A9B8C}']
     function GetCapabilityName: string;
     function HandlesMethod(const Method: string): Boolean;
-    function ExecuteMethod(const Method: string; const Params: TJSONObject): TValue;
+    function ExecuteMethod(const Method: string; const Params: TJSONObject; var SessionID: string; const AuthHeader: string): TValue;
   end;
   
   IMCPManagerRegistry = interface
@@ -108,6 +111,15 @@ type
     FTools: TArray<TMCPTool>;
   public
     property Tools: TArray<TMCPTool> read FTools write FTools;
+  end;
+
+  EMCPStatusError = class(Exception)
+  private
+    FHTTPStatus: Smallint;
+  public
+    constructor Create(const AHTTPStatus: Smallint; const AErrorMsg: String);
+
+    property HTTPStatus: Smallint read FHTTPStatus write FHTTPStatus;
   end;
 
 implementation
@@ -201,6 +213,14 @@ begin
   inherited;
   FSupportsProgress := False;
   FSupportsCancellation := False;
+end;
+
+{ EMCPStatusError }
+
+constructor EMCPStatusError.Create(const AHTTPStatus: Smallint; const AErrorMsg: String);
+begin
+  inherited Create(AErrorMsg);
+  FHTTPStatus := AHTTPStatus;
 end;
 
 end.

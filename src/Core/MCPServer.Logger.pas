@@ -268,9 +268,24 @@ begin
   Result := Instance.FOnLogMessage;
 end;
 
+procedure DisableQuickEdit;
+var
+  hStdIn: THandle;
+  mode: DWORD;
+begin
+  hStdIn := GetStdHandle(STD_INPUT_HANDLE);
+  GetConsoleMode(hStdIn, mode);
+  // Deaktiviere ENABLE_QUICK_EDIT_MODE
+  mode := mode and not ENABLE_QUICK_EDIT_MODE;
+  SetConsoleMode(hStdIn, mode);
+end;
+
 class procedure TLogger.SetLogToConsole(const Value: Boolean);
 begin
   Instance.FLogToConsole := Value;
+
+  if Value then
+    DisableQuickEdit;
 end;
 
 class procedure TLogger.SetLogToFile(const Value: Boolean);

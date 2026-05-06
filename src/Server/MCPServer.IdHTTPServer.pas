@@ -26,7 +26,8 @@ uses
   IdServerIOHandler,
   MCPServer.Types,
   MCPServer.Settings,
-  MCPServer.JsonRpcProcessor;
+  MCPServer.JsonRpcProcessor,
+  MCPServer.CoreManager;
 
 type
   TMCPIdHTTPServer = class(TComponent)
@@ -37,13 +38,14 @@ type
     {$ELSE}
     FSSLHandler: TIdServerIOHandlerSSLOpenSSL;
     {$ENDIF}
-    FManagerRegistry: IMCPManagerRegistry;
-    FCoreManager: IMCPCapabilityManager;
-    FJsonRpcProcessor: TMCPJsonRpcProcessor;
+    FCoreManager: TMCPCoreManager;
+    FCoreJsonRpcProcessor: TMCPJsonRpcProcessor;
     FPort: Word;
     FActive: Boolean;
     FSettings: TMCPCustomSettings;
     FEventIDCounter: Int64;
+    FCoreManagerRegistry: IMCPManagerRegistry;
+    procedure DoParseAuthentication(AContext: TIdContext; const AAuthType, AAuthData: String; var VUsername, VPassword: String; var VHandled: Boolean);
     procedure ConfigureSSL;
     procedure HandleQuerySSLPort(APort: Word; var VUseSSL: Boolean);
     procedure HandleHTTPRequest(Context: TIdContext; RequestInfo: TIdHTTPRequestInfo; ResponseInfo: TIdHTTPResponseInfo);
@@ -51,11 +53,12 @@ type
     procedure HandleOptionsRequest(ResponseInfo: TIdHTTPResponseInfo);
     procedure HandleGetRequest(RequestInfo: TIdHTTPRequestInfo; ResponseInfo: TIdHTTPResponseInfo);
     procedure HandlePostRequest(RequestInfo: TIdHTTPRequestInfo; ResponseInfo: TIdHTTPResponseInfo);
-    procedure HandlePostRequestSSE(RequestInfo: TIdHTTPRequestInfo; ResponseInfo: TIdHTTPResponseInfo; const RequestBody: string; const SessionID: string);
-    procedure HandlePostRequestJSON(RequestInfo: TIdHTTPRequestInfo; ResponseInfo: TIdHTTPResponseInfo; const RequestBody: string; const SessionID: string);
+    procedure HandlePostRequestSSE(RequestInfo: TIdHTTPRequestInfo; ResponseInfo: TIdHTTPResponseInfo; const RequestBody: string; var SessionID: string);
+    procedure HandlePostRequestJSON(RequestInfo: TIdHTTPRequestInfo; ResponseInfo: TIdHTTPResponseInfo; const RequestBody: string; var SessionID: string);
     function GetNextEventID: string;
     function AcceptsSSE(const AcceptHeader: string): Boolean;
     function IsRequestOnlyNotificationsOrResponses(JSONRequest: TJSONValue): Boolean;
+    procedure SetCoreManager(const Value: TMCPCoreManager);
   public
     constructor Create(Owner: TComponent); override;
     destructor Destroy; override;
@@ -63,8 +66,8 @@ type
     procedure Stop;
     property Port: Word read FPort write FPort;
     property Active: Boolean read FActive;
-    property ManagerRegistry: IMCPManagerRegistry read FManagerRegistry write FManagerRegistry;
-    property CoreManager: IMCPCapabilityManager read FCoreManager write FCoreManager;
+    property CoreManager: TMCPCoreManager read FCoreManager write SetCoreManager;
+    property CoreManagerRegistry: IMCPManagerRegistry read FCoreManagerRegistry;
     property Settings: TMCPCustomSettings read FSettings write FSettings;
   end;
 
@@ -72,7 +75,7 @@ implementation
 
 uses
   MCPServer.Resource.Server,
-  MCPServer.CoreManager,
+  MCPServer.ManagerRegistry,
   MCPServer.Logger;
 
 const
@@ -112,13 +115,14 @@ begin
   FPort := DEFAULT_MCP_PORT;
   FActive := False;
   FEventIDCounter := 0;
-  FJsonRpcProcessor := nil;
+  FCoreJsonRpcProcessor := nil;
 
   FHTTPServer := TIdHTTPServer.Create(Self);
   FHTTPServer.KeepAlive := True;
   FHTTPServer.OnCommandGet := HandleHTTPRequest;
   FHTTPServer.OnCommandOther := HandleHTTPRequest;
   FHTTPServer.OnQuerySSLPort := HandleQuerySSLPort;
+  FHTTPServer.OnParseAuthentication := DoParseAuthentication;
   FSSLHandler := nil;
 end;
 
@@ -129,8 +133,37 @@ begin
   FHTTPServer.Free;
   if Assigned(FSSLHandler) then
     FSSLHandler.Free;
-  FJsonRpcProcessor.Free;
+  FCoreJsonRpcProcessor.Free;
+  SetCoreManager(nil);
   inherited;
+end;
+
+procedure TMCPIdHTTPServer.DoParseAuthentication(AContext: TIdContext; const AAuthType, AAuthData: String; var VUsername,
+  VPassword: String; var VHandled: Boolean);
+begin
+  if AAuthType = 'Bearer' then
+  begin
+    VHandled := true;
+  end;
+end;
+
+procedure TMCPIdHTTPServer.SetCoreManager(const Value: TMCPCoreManager);
+begin
+  FCoreManagerRegistry := nil;
+
+  if Assigned(FCoreManager) then
+    IInterface(FCoreManager)._Release;
+
+  if Assigned(Value) then
+  begin
+    FCoreManagerRegistry := TMCPManagerRegistry.Create;
+    FCoreManagerRegistry.RegisterManager(Value);
+  end;
+
+  FCoreManager := Value;
+
+  if Assigned(FCoreManager) then
+    IInterface(FCoreManager)._AddRef;
 end;
 
 procedure TMCPIdHTTPServer.Start;
@@ -138,10 +171,10 @@ begin
   if FActive then
     Exit;
 
-  if not Assigned(FManagerRegistry) then
-    raise Exception.Create('Manager registry not assigned');
+  if not Assigned(FCoreManagerRegistry) then
+    raise Exception.Create('CoreManager not assigned');
 
-  FJsonRpcProcessor := TMCPJsonRpcProcessor.Create(FManagerRegistry);
+  FCoreJsonRpcProcessor := TMCPJsonRpcProcessor.Create(FCoreManagerRegistry);
 
   if Assigned(FSettings) then
   begin
@@ -210,46 +243,48 @@ function TMCPIdHTTPServer.VerifyAndSetCORSHeaders(RequestInfo: TIdHTTPRequestInf
 begin
   Result := True;
 
-  if not Assigned(FSettings) or not FSettings.CorsEnabled then
-    Exit;
-
   var Origin := RequestInfo.RawHeaders.Values['Origin'];
   var AllowedOrigin: string := '*';
 
-  if (FSettings.CorsAllowedOrigins <> '*') and (Origin <> '') then
+  if not Assigned(FSettings) or not FSettings.CorsEnabled then
   begin
-    var OriginsList := TStringList.Create;
-    try
-      OriginsList.CommaText := FSettings.CorsAllowedOrigins;
-      var Found := False;
+    AllowedOrigin := Origin;
+  end else
+  begin
+    if (FSettings.CorsAllowedOrigins <> '*') and (Origin <> '') then
+    begin
+      var OriginsList := TStringList.Create;
+      try
+        OriginsList.CommaText := FSettings.CorsAllowedOrigins;
+        var Found := False;
 
-      for var CurrentOrigin in OriginsList do
-      begin
-        if SameText(Trim(CurrentOrigin), Origin) then
+        for var CurrentOrigin in OriginsList do
         begin
-          AllowedOrigin := Origin;
-          Found := True;
-          Break;
+          if SameText(Trim(CurrentOrigin), Origin) then
+          begin
+            AllowedOrigin := Origin;
+            Found := True;
+            Break;
+          end;
         end;
-      end;
 
-      if not Found then
-      begin
-        Result := False;
-        ResponseInfo.ResponseNo := HTTP_FORBIDDEN;
-        ResponseInfo.ResponseText := 'Forbidden - Origin not allowed';
-        TLogger.Info('CORS blocked origin: ' + Origin);
-        Exit;
+        if not Found then
+        begin
+          Result := False;
+          ResponseInfo.ResponseNo := HTTP_FORBIDDEN;
+          ResponseInfo.ResponseText := 'Forbidden - Origin not allowed';
+          TLogger.Info('CORS blocked origin: ' + Origin);
+          Exit;
+        end;
+      finally
+        OriginsList.Free;
       end;
-    finally
-      OriginsList.Free;
     end;
   end;
 
   ResponseInfo.CustomHeaders.Values['Access-Control-Allow-Origin'] := AllowedOrigin;
   ResponseInfo.CustomHeaders.Values['Access-Control-Allow-Methods'] := 'POST, GET, OPTIONS';
-  ResponseInfo.CustomHeaders.Values['Access-Control-Allow-Headers'] := 
-    'Content-Type, Mcp-Session-Id';
+  ResponseInfo.CustomHeaders.Values['Access-Control-Allow-Headers'] := 'Content-Type, Mcp-Session-Id, Authorization, mcp-protocol-version';
   ResponseInfo.CustomHeaders.Values['Access-Control-Max-Age'] := CORS_MAX_AGE.ToString;
 end;
 
@@ -327,18 +362,16 @@ begin
     begin
       TLogger.Info('Request contains only notifications/responses, returning 202 Accepted');
       ResponseInfo.ResponseNo := HTTP_ACCEPTED;
-
-      if SessionID <> '' then
-        ResponseInfo.CustomHeaders.Values['Mcp-Session-Id'] := SessionID;
-
-      Exit;
+    end else
+    begin
+      if AcceptsSSE(AcceptHeader) then
+        HandlePostRequestSSE(RequestInfo, ResponseInfo, RequestBody, SessionID)
+      else
+        HandlePostRequestJSON(RequestInfo, ResponseInfo, RequestBody, SessionID);
     end;
 
-    if AcceptsSSE(AcceptHeader) then
-      HandlePostRequestSSE(RequestInfo, ResponseInfo, RequestBody, SessionID)
-    else
-      HandlePostRequestJSON(RequestInfo, ResponseInfo, RequestBody, SessionID);
-
+    if SessionID <> '' then
+      ResponseInfo.CustomHeaders.Values['Mcp-Session-Id'] := SessionID;
   finally
     JSONRequest.Free;
   end;
@@ -442,82 +475,100 @@ begin
 end;
 
 procedure TMCPIdHTTPServer.HandlePostRequestSSE(RequestInfo: TIdHTTPRequestInfo;
-  ResponseInfo: TIdHTTPResponseInfo; const RequestBody: string; const SessionID: string);
+  ResponseInfo: TIdHTTPResponseInfo; const RequestBody: string; var SessionID: string);
 begin
   TLogger.Info('Handling POST request with SSE stream');
+  try
+    ResponseInfo.ContentType := 'text/event-stream';
+    ResponseInfo.CharSet := 'utf-8';
+    ResponseInfo.CustomHeaders.Values['Cache-Control'] := 'no-cache';
+    ResponseInfo.CustomHeaders.Values['Connection'] := 'keep-alive';
+    ResponseInfo.CustomHeaders.Values['X-Accel-Buffering'] := 'no';
 
-  ResponseInfo.ContentType := 'text/event-stream';
-  ResponseInfo.CharSet := 'utf-8';
-  ResponseInfo.CustomHeaders.Values['Cache-Control'] := 'no-cache';
-  ResponseInfo.CustomHeaders.Values['Connection'] := 'keep-alive';
-  ResponseInfo.CustomHeaders.Values['X-Accel-Buffering'] := 'no';
+    var AuthHeader := RequestInfo.RawHeaders.Values['Authorization'];
+    var RpcProcessor: TMCPJsonRpcProcessor := FCoreJsonRpcProcessor;
 
-  if SessionID <> '' then
-    ResponseInfo.CustomHeaders.Values['Mcp-Session-Id'] := SessionID;
+    if Length(SessionID) > 0 then
+    begin
+      CoreManager.ValidateSession(SessionId, AuthHeader, RpcProcessor);
+    end;
 
-  var JSONResponse := FJsonRpcProcessor.ProcessRequest(RequestBody, SessionID);
+    var JSONResponse := RpcProcessor.ProcessRequest(RequestBody, SessionID, AuthHeader);
 
-  if JSONResponse <> '' then
-  begin
-    var EventID := GetNextEventID;
-    var SSEMessage := '';
+    if JSONResponse <> '' then
+    begin
+      var EventID := GetNextEventID;
+      var SSEMessage := '';
 
-    if EventID <> '' then
-      SSEMessage := SSEMessage + SSE_ID_PREFIX + EventID + #10;
+      if EventID <> '' then
+        SSEMessage := SSEMessage + SSE_ID_PREFIX + EventID + #10;
 
-    SSEMessage := SSEMessage + SSE_EVENT_PREFIX + 'message' + #10;
-    SSEMessage := SSEMessage + SSE_DATA_PREFIX + JSONResponse + SSE_MESSAGE_TERMINATOR;
+      SSEMessage := SSEMessage + SSE_EVENT_PREFIX + 'message' + #10;
+      SSEMessage := SSEMessage + SSE_DATA_PREFIX + JSONResponse + SSE_MESSAGE_TERMINATOR;
 
-    ResponseInfo.ContentText := SSEMessage;
-    TLogger.Info('SSE response prepared with event ID: ' + EventID);
-  end
-  else
-  begin
-    ResponseInfo.ContentText := '';
+      ResponseInfo.ContentText := SSEMessage;
+      TLogger.Info('SSE response prepared with event ID: ' + EventID);
+    end
+    else
+    begin
+      ResponseInfo.ContentText := '';
+    end;
+
+    ResponseInfo.ResponseNo := HTTP_OK;
+  except
+    on E: Exception do
+    begin
+      if E is EMCPStatusError then
+      begin
+        ResponseInfo.ResponseNo := EMCPStatusError(E).HTTPStatus;
+        ResponseInfo.ContentText := Format('{"error": "%s"}', [EMCPStatusError(E).Message]);
+      end else
+        raise;
+    end;
   end;
-
-  ResponseInfo.ResponseNo := HTTP_OK;
 end;
 
 procedure TMCPIdHTTPServer.HandlePostRequestJSON(RequestInfo: TIdHTTPRequestInfo;
-  ResponseInfo: TIdHTTPResponseInfo; const RequestBody: string; const SessionID: string);
+  ResponseInfo: TIdHTTPResponseInfo; const RequestBody: string; var SessionID: string);
 begin
   TLogger.Info('Handling POST request with JSON response');
+  try
+    var AuthHeader := RequestInfo.RawHeaders.Values['Authorization'];
+    var RpcProcessor: TMCPJsonRpcProcessor := FCoreJsonRpcProcessor;
 
-  var ResponseBody := FJsonRpcProcessor.ProcessRequest(RequestBody, SessionID);
-
-  if ResponseBody = '' then
-  begin
-    ResponseInfo.ResponseNo := HTTP_NO_CONTENT;
-    Exit;
-  end;
-
-  ResponseInfo.ContentType := 'application/json';
-  ResponseInfo.CustomHeaders.Values['Connection'] := 'keep-alive';
-
-  if (SessionID = '') and (Pos('"sessionId"', ResponseBody) > 0) then
-  begin
-    var ResponseJSON := TJSONObject.ParseJSONValue(ResponseBody) as TJSONObject;
-    try
-      var ResultObj := ResponseJSON.GetValue('result') as TJSONObject;
-      if Assigned(ResultObj) then
-      begin
-        var SessionValue := ResultObj.GetValue('sessionId');
-        if Assigned(SessionValue) then
-          ResponseInfo.CustomHeaders.Values['Mcp-Session-Id'] := SessionValue.Value;
-      end;
-    finally
-      ResponseJSON.Free;
+    if Length(SessionID) > 0 then
+    begin
+      CoreManager.ValidateSession(SessionId, AuthHeader, RpcProcessor);
     end;
-  end
-  else if SessionID <> '' then
-    ResponseInfo.CustomHeaders.Values['Mcp-Session-Id'] := SessionID;
 
-  ResponseInfo.ContentStream := TStringStream.Create(ResponseBody, TEncoding.UTF8);
-  ResponseInfo.FreeContentStream := True;
-  ResponseInfo.ResponseNo := HTTP_OK;
+    var ResponseBody := RpcProcessor.ProcessRequest(RequestBody, SessionID, AuthHeader);
 
-  TLogger.Info('Response: ' + ResponseBody);
+    if ResponseBody = '' then
+    begin
+      ResponseInfo.ResponseNo := HTTP_NO_CONTENT;
+      Exit;
+    end;
+
+    ResponseInfo.ContentType := 'application/json';
+    ResponseInfo.CustomHeaders.Values['Connection'] := 'keep-alive';
+
+    ResponseInfo.ContentStream := TStringStream.Create(ResponseBody, TEncoding.UTF8);
+    ResponseInfo.FreeContentStream := True;
+    ResponseInfo.ResponseNo := HTTP_OK;
+
+    TLogger.Info('Response: ' + ResponseBody);
+  except
+    on E: Exception do
+    begin
+      if E is EMCPStatusError then
+      begin
+        ResponseInfo.ResponseNo := EMCPStatusError(E).HTTPStatus;
+        ResponseInfo.ContentText := Format('{"error": "%s"}', [EMCPStatusError(E).Message]);
+      end else
+        raise;
+    end;
+  end;
 end;
+
 
 end.
