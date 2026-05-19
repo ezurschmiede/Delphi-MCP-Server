@@ -18,11 +18,11 @@ type
     class function CreateJSONResponse(const RequestID: TValue): TJSONObject;
     class procedure AddRequestIDToResponse(Response: TJSONObject; const RequestID: TValue);
     class function ExecuteMethodCall(ManagerRegistry: IMCPManagerRegistry; const MethodName: string; Params: TJSONObject;
-      var SessionID: string; const AuthHeader: string): TValue;
+      var SessionID: string; const AuthHeader, RemoteIP: string): TValue;
     class function CreateErrorResponse(const RequestID: TValue; ErrorCode: Integer; const ErrorMessage: string): string;
   public
     constructor Create(ManagerRegistry: IMCPManagerRegistry);
-    function ProcessRequest(const RequestBody: string; var SessionID: string; const AuthHeader: string): string;
+    function ProcessRequest(const RequestBody: string; var SessionID: string; const AuthHeader, RemoteIP: string): string;
   end;
 
 const
@@ -98,7 +98,7 @@ begin
 end;
 
 class function TMCPJsonRpcProcessor.ExecuteMethodCall(ManagerRegistry: IMCPManagerRegistry;
-  const MethodName: string; Params: TJSONObject; var SessionID: string; const AuthHeader: string): TValue;
+  const MethodName: string; Params: TJSONObject; var SessionID: string; const AuthHeader, RemoteIP: string): TValue;
 begin
   if not Assigned(ManagerRegistry) then
     raise Exception.Create('Manager registry not initialized');
@@ -107,7 +107,7 @@ begin
   if not Assigned(Manager) then
     raise Exception.CreateFmt('Method [%s] not found. The method does not exist or is not available.', [MethodName]);
 
-  Result := Manager.ExecuteMethod(MethodName, Params, SessionID, AuthHeader);
+  Result := Manager.ExecuteMethod(MethodName, Params, SessionID, AuthHeader, RemoteIP);
 end;
 
 class function TMCPJsonRpcProcessor.CreateErrorResponse(const RequestID: TValue;
@@ -125,7 +125,7 @@ begin
   end;
 end;
 
-function TMCPJsonRpcProcessor.ProcessRequest(const RequestBody: string; var SessionID: string; const AuthHeader: string): string;
+function TMCPJsonRpcProcessor.ProcessRequest(const RequestBody: string; var SessionID: string; const AuthHeader, RemoteIP: string): string;
 begin
   Result := '';
   var JSONRequest: TJSONObject := nil;
@@ -159,7 +159,7 @@ begin
       if Assigned(ParamsValue) and (ParamsValue is TJSONObject) then
         Params := ParamsValue as TJSONObject;
 
-      var ExecuteResult := ExecuteMethodCall(FManagerRegistry, MethodName, Params, SessionID, AuthHeader);
+      var ExecuteResult := ExecuteMethodCall(FManagerRegistry, MethodName, Params, SessionID, AuthHeader, RemoteIP);
 
       if not ExecuteResult.IsEmpty then
       begin

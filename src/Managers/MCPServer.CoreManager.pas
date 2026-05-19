@@ -33,8 +33,8 @@ type
     constructor Create(const ACoreManager: TMCPSessionCoreManager);
     destructor Destroy; override;
 
-    procedure Init(const SessionId: String; const Params: TJSONObject; const AuthHeader: string); virtual;
-    function ValidateAuth(const AuthHeader: string): Boolean; virtual;
+    procedure Init(const SessionId: String; const Params: TJSONObject; const AuthHeader, RemoteIP: string); virtual;
+    function ValidateAuth(const AuthHeader, RemoteIP: string): Boolean; virtual;
 
     procedure RegisterTool(const Tool: IMCPTool);
     procedure RegisterResource(const Resource: IMCPResource);
@@ -51,9 +51,9 @@ type
   private
     FSettings: TMCPCustomSettings;
   protected
-    procedure InitSession(const Session: TMCPSession; const SessionId: String; const Params: TJSONObject; const AuthHeader: string); virtual;
-    function ValidateAuth(const Session: TMCPSession; const AuthHeader: string): Boolean; virtual;
-    function CreateNewSession(const Params: TJSONObject; const AuthHeader: string): string; virtual;
+    procedure InitSession(const Session: TMCPSession; const SessionId: String; const Params: TJSONObject; const AuthHeader, RemoteIP: string); virtual;
+    function ValidateAuth(const Session: TMCPSession; const AuthHeader, RemoteIP: string): Boolean; virtual;
+    function CreateNewSession(const Params: TJSONObject; const AuthHeader, RemoteIP: string): string; virtual;
   public
     constructor Create(ASettings: TMCPCustomSettings); virtual;
     destructor Destroy; override;
@@ -61,18 +61,18 @@ type
     function GetRpcProcessor(const SessionId: string): TMCPJsonRpcProcessor;
     function GetSession(const SessionId: string): TMCPSession; virtual;
 
-    function ValidateSession(const SessionId, AuthHeader: string; var AProcessor: TMCPJsonRpcProcessor): TMCPSession;
+    function ValidateSession(const SessionId, AuthHeader, RemoteIP: string; var AProcessor: TMCPJsonRpcProcessor): TMCPSession;
 
     function GetCapabilityName: string;
     function HandlesMethod(const Method: string): Boolean;
-    function ExecuteMethod(const Method: string; const Params: TJSONObject; var SessionID: string; const AuthHeader: string): TValue;
+    function ExecuteMethod(const Method: string; const Params: TJSONObject; var SessionID: string; const AuthHeader, RemoteIP: string): TValue;
 
-    function Initialize(const Params: TJSONObject; var SessionID: string; const AuthHeader: string): TValue;
+    function Initialize(const Params: TJSONObject; var SessionID: string; const AuthHeader, RemoteIP: string): TValue;
     function Ping: TValue;
   end;
 
-  TInitSessionEvent = reference to procedure(const Session: TMCPSession; const SessionId: String; const Params: TJSONObject; const AuthHeader: string);
-  TValidateAuthEvent = reference to procedure(const Session: TMCPSession; const AuthHeader: string; var IsAuth: Boolean);
+  TInitSessionEvent = reference to procedure(const Session: TMCPSession; const SessionId: String; const Params: TJSONObject; const AuthHeader, RemoteIP: string);
+  TValidateAuthEvent = reference to procedure(const Session: TMCPSession; const AuthHeader, RemoteIP: string; var IsAuth: Boolean);
 
   TMCPSessionCoreManager = class(TMCPCoreManager)
   private
@@ -82,9 +82,9 @@ type
     FOnValidateAuth: TValidateAuthEvent;
   protected
     function GetSessionClass: TMCPSessionClass; virtual;
-    function ValidateAuth(const Session: TMCPSession; const AuthHeader: string): Boolean; override;
-    procedure InitSession(const Session: TMCPSession; const SessionId: String; const Params: TJSONObject; const AuthHeader: string); override;
-    function CreateNewSession(const Params: TJSONObject; const AuthHeader: string): string; override;
+    function ValidateAuth(const Session: TMCPSession; const AuthHeader, RemoteIP: string): Boolean; override;
+    procedure InitSession(const Session: TMCPSession; const SessionId: String; const Params: TJSONObject; const AuthHeader, RemoteIP: string); override;
+    function CreateNewSession(const Params: TJSONObject; const AuthHeader, RemoteIP: string): string; override;
   public
     constructor Create(ASettings: TMCPCustomSettings); override;
     procedure BeforeDestruction; override;
@@ -135,7 +135,7 @@ begin
             (Method = 'ping');
 end;
 
-function TMCPCoreManager.CreateNewSession(const Params: TJSONObject; const AuthHeader: string): string;
+function TMCPCoreManager.CreateNewSession(const Params: TJSONObject; const AuthHeader, RemoteIP: string): string;
 begin
   Result := TGuid.NewGuid.ToString;
 
@@ -162,10 +162,10 @@ begin
   inherited;
 end;
 
-function TMCPCoreManager.ExecuteMethod(const Method: string; const Params: TJSONObject; var SessionID: string; const AuthHeader: string): TValue;
+function TMCPCoreManager.ExecuteMethod(const Method: string; const Params: TJSONObject; var SessionID: string; const AuthHeader, RemoteIP: string): TValue;
 begin
   if Method = 'initialize' then
-    Result := Initialize(Params, SessionID, AuthHeader)
+    Result := Initialize(Params, SessionID, AuthHeader, RemoteIP)
   else if Method = 'notifications/initialized' then
   begin
     TLogger.Info('MCP Initialized notification received');
@@ -177,29 +177,29 @@ begin
     raise Exception.CreateFmt('Method %s not handled by %s', [Method, GetCapabilityName]);
 end;
 
-function TMCPCoreManager.ValidateAuth(const Session: TMCPSession; const AuthHeader: string): Boolean;
+function TMCPCoreManager.ValidateAuth(const Session: TMCPSession; const AuthHeader, RemoteIP: string): Boolean;
 begin
   Result := true;
 end;
 
-function TMCPCoreManager.ValidateSession(const SessionId, AuthHeader: string; var AProcessor: TMCPJsonRpcProcessor): TMCPSession;
+function TMCPCoreManager.ValidateSession(const SessionId, AuthHeader, RemoteIP: string; var AProcessor: TMCPJsonRpcProcessor): TMCPSession;
 begin
   Result := GetSession(SessionId);
 
   if Assigned(Result) then
   begin
-    if Result.ValidateAuth(AuthHeader) then
+    if Result.ValidateAuth(AuthHeader, RemoteIP) then
       AProcessor := Result.Processor
     else
       raise EMCPStatusError.Create(404, 'Invalid authentication');
   end;
 end;
 
-function TMCPCoreManager.Initialize(const Params: TJSONObject; var SessionID: string; const AuthHeader: string): TValue;
+function TMCPCoreManager.Initialize(const Params: TJSONObject; var SessionID: string; const AuthHeader, RemoteIP: string): TValue;
 begin
   TLogger.Info('MCP Initialize called');
 
-  SessionID := CreateNewSession(Params, AuthHeader);
+  SessionID := CreateNewSession(Params, AuthHeader, RemoteIP);
 
   var ResultJSON := TJSONObject.Create;
   try
@@ -233,7 +233,7 @@ begin
 end;
 
 procedure TMCPCoreManager.InitSession(const Session: TMCPSession; const SessionId: String; const Params: TJSONObject;
-  const AuthHeader: string);
+  const AuthHeader, RemoteIP: string);
 begin
   //
 end;
@@ -266,13 +266,13 @@ begin
   FSessions := TObjectDictionary<String, TMCPSession>.Create([doOwnsValues]);
 end;
 
-function TMCPSessionCoreManager.CreateNewSession(const Params: TJSONObject; const AuthHeader: string): string;
+function TMCPSessionCoreManager.CreateNewSession(const Params: TJSONObject; const AuthHeader, RemoteIP: string): string;
 begin
-  Result := inherited CreateNewSession(Params, AuthHeader);
+  Result := inherited CreateNewSession(Params, AuthHeader, RemoteIP);
 
   var Session := GetSessionClass.Create(self);
   try
-    Session.Init(Result, Params, AuthHeader);
+    Session.Init(Result, Params, AuthHeader, RemoteIP);
 
     FSessionLock.Enter;
     try
@@ -313,18 +313,18 @@ begin
 end;
 
 procedure TMCPSessionCoreManager.InitSession(const Session: TMCPSession; const SessionId: String; const Params: TJSONObject;
-  const AuthHeader: string);
+  const AuthHeader, RemoteIP: string);
 begin
   if Assigned(OnInitSession) then
-    OnInitSession(Session, SessionId, Params, AuthHeader);
+    OnInitSession(Session, SessionId, Params, AuthHeader, RemoteIP);
 end;
 
-function TMCPSessionCoreManager.ValidateAuth(const Session: TMCPSession; const AuthHeader: string): Boolean;
+function TMCPSessionCoreManager.ValidateAuth(const Session: TMCPSession; const AuthHeader, RemoteIP: string): Boolean;
 begin
-  Result := inherited ValidateAuth(Session, AuthHeader);
+  Result := inherited ValidateAuth(Session, AuthHeader, RemoteIP);
 
   if Assigned(OnValidateAuth) then
-    OnValidateAuth(Session, AuthHeader, Result);
+    OnValidateAuth(Session, AuthHeader, RemoteIP, Result);
 end;
 
 { TMCPSession }
@@ -349,9 +349,9 @@ begin
   inherited;
 end;
 
-procedure TMCPSession.Init(const SessionId: String; const Params: TJSONObject; const AuthHeader: string);
+procedure TMCPSession.Init(const SessionId: String; const Params: TJSONObject; const AuthHeader, RemoteIP: string);
 begin
-  FCoreManager.InitSession(self, SessionId, Params, AuthHeader);
+  FCoreManager.InitSession(self, SessionId, Params, AuthHeader, RemoteIP);
 
   // override and add session specific tools and resources. one can validate auth here, too
   //
@@ -371,9 +371,9 @@ begin
   FToolsManager.RegisterTool(Tool);
 end;
 
-function TMCPSession.ValidateAuth(const AuthHeader: string): Boolean;
+function TMCPSession.ValidateAuth(const AuthHeader, RemoteIP: string): Boolean;
 begin
-  Result := FCoreManager.ValidateAuth(self, AuthHeader);
+  Result := FCoreManager.ValidateAuth(self, AuthHeader, RemoteIP);
 
   // override and add/update session specific tools and resources allowed with current AuthHeader.
   //

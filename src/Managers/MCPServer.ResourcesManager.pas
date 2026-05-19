@@ -22,7 +22,7 @@ type
     procedure RegisterResource(const Resource: IMCPResource);
     function GetCapabilityName: string;
     function HandlesMethod(const Method: string): Boolean;
-    function ExecuteMethod(const Method: string; const Params: System.JSON.TJSONObject; var SessionID: string; const AuthHeader: string): TValue;
+    function ExecuteMethod(const Method: string; const Params: System.JSON.TJSONObject; var SessionID: string; const AuthHeader, RemoteIP: string): TValue;
     
     function ListResources: TValue;
     function ReadResource(const Params: System.JSON.TJSONObject): TValue;
@@ -60,7 +60,7 @@ begin
             (Method = 'resources/templates/list');
 end;
 function TMCPResourcesManager.ExecuteMethod(const Method: string; const Params: System.JSON.TJSONObject; var SessionID: string;
-  const AuthHeader: string): TValue;
+  const AuthHeader, RemoteIP: string): TValue;
 begin
   if Method = 'resources/list' then
     Result := ListResources

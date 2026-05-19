@@ -34,7 +34,7 @@ type
     
     function GetCapabilityName: string;
     function HandlesMethod(const Method: string): Boolean;
-    function ExecuteMethod(const Method: string; const Params: System.JSON.TJSONObject; var SessionID: string; const AuthHeader: string): TValue;
+    function ExecuteMethod(const Method: string; const Params: System.JSON.TJSONObject; var SessionID: string; const AuthHeader, RemoteIP: string): TValue;
     
     function ListTools: TValue;
     function CallTool(const Params: System.JSON.TJSONObject): TValue;
@@ -76,7 +76,7 @@ begin
   Result := (Method = 'tools/list') or (Method = 'tools/call');
 end;
 
-function TMCPToolsManager.ExecuteMethod(const Method: string; const Params: System.JSON.TJSONObject; var SessionID: string; const AuthHeader: string): TValue;
+function TMCPToolsManager.ExecuteMethod(const Method: string; const Params: System.JSON.TJSONObject; var SessionID: string; const AuthHeader, RemoteIP: string): TValue;
 begin
   if Method = 'tools/list' then
     Result := ListTools
