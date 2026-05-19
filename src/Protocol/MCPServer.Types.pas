@@ -43,7 +43,7 @@ type
     ['{E5F7C3A1-8B4D-4F6E-9C2A-1D3E5F7A9B8C}']
     function GetCapabilityName: string;
     function HandlesMethod(const Method: string): Boolean;
-    function ExecuteMethod(const Method: string; const Params: TJSONObject; var SessionID: string; const AuthHeader: string): TValue;
+    function ExecuteMethod(const Method: string; const Params: TJSONObject; var SessionID: string; const AuthHeader, RemoteIP: string): TValue;
   end;
   
   IMCPManagerRegistry = interface

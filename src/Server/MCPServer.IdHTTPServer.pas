@@ -490,10 +490,10 @@ begin
 
     if Length(SessionID) > 0 then
     begin
-      CoreManager.ValidateSession(SessionId, AuthHeader, RpcProcessor);
+      CoreManager.ValidateSession(SessionId, AuthHeader, RequestInfo.RemoteIP, RpcProcessor);
     end;
 
-    var JSONResponse := RpcProcessor.ProcessRequest(RequestBody, SessionID, AuthHeader);
+    var JSONResponse := RpcProcessor.ProcessRequest(RequestBody, SessionID, AuthHeader, RequestInfo.RemoteIP);
 
     if JSONResponse <> '' then
     begin
@@ -538,10 +538,10 @@ begin
 
     if Length(SessionID) > 0 then
     begin
-      CoreManager.ValidateSession(SessionId, AuthHeader, RpcProcessor);
+      CoreManager.ValidateSession(SessionId, AuthHeader, RequestInfo.RemoteIP, RpcProcessor);
     end;
 
-    var ResponseBody := RpcProcessor.ProcessRequest(RequestBody, SessionID, AuthHeader);
+    var ResponseBody := RpcProcessor.ProcessRequest(RequestBody, SessionID, AuthHeader, RequestInfo.RemoteIP);
 
     if ResponseBody = '' then
     begin

@@ -88,26 +88,31 @@ begin
       Server.CoreManager := TMCPSessionCoreManager.Create(Server.Settings);
 
       TMCPSessionCoreManager(Server.CoreManager).OnInitSession := procedure(const Session: TMCPSession; const SessionId: String;
-        const Params: TJSONObject; const AuthHeader: string)
+        const Params: TJSONObject; const AuthHeader, RemoteIP: string)
         begin
           TLogger.Debug('OnInitSession: session-id: ' + SessionId + '; auth-header: ' + AuthHeader);
 
-          if AuthHeader = 'Bearer 1234' then
+          if (RemoteIP = '127.0.0.1') or (RemoteIP = '::1') then
           begin
-            // the session contains all global TMCPRegistry registered tools and resources allready.
-            // here one can add tools and resources based on AuthHeader permission to the new session
-            // tools and resources added to a session are available on this session only
+            if AuthHeader = 'Bearer 1234' then
+            begin
+              // the session contains all global TMCPRegistry registered tools and resources allready.
+              // here one can add tools and resources based on AuthHeader permission to the new session
+              // tools and resources added to a session are available on this session only
 
-            Session.RegisterTool(TListFilesTool.CreateForSession(Session));
-            Session.RegisterResource(TLogsRecentResource.CreateForSession(Session));
-          end;
+              Session.RegisterTool(TListFilesTool.CreateForSession(Session));
+              Session.RegisterResource(TLogsRecentResource.CreateForSession(Session));
+            end else
+              raise EMCPStatusError.Create(404, 'invalid auth!');
+          end else
+            raise EMCPStatusError.Create(404, 'IP not allowed!');
         end;
 
-      TMCPSessionCoreManager(Server.CoreManager).OnValidateAuth := procedure(const Session: TMCPSession; const AuthHeader: string;
+      TMCPSessionCoreManager(Server.CoreManager).OnValidateAuth := procedure(const Session: TMCPSession; const AuthHeader, RemoteIP: string;
         var IsAuth: Boolean)
         begin
           TLogger.Debug('OnValidateAuth: auth-header: ' + AuthHeader);
-
+          // one can check RemoteIP again, too
           IsAuth := AuthHeader = 'Bearer 1234';
         end;
 

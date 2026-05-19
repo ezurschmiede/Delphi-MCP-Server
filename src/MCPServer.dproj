@@ -138,6 +138,8 @@
         <DCCReference Include="Tools\MCPServer.Tool.Base.pas"/>
         <DCCReference Include="Resources\MCPServer.Resource.Base.pas"/>
         <DCCReference Include="Server\MCPServer.IdHTTPServer.pas"/>
+        <DCCReference Include="Server\MCPServer.StdioTransport.pas"/>
+        <DCCReference Include="Protocol\MCPServer.JsonRpcProcessor.pas"/>
         <DCCReference Include="Managers\MCPServer.CoreManager.pas"/>
         <DCCReference Include="Managers\MCPServer.ToolsManager.pas"/>
         <DCCReference Include="Managers\MCPServer.ResourcesManager.pas"/>
@@ -146,8 +148,10 @@
         <DCCReference Include="Tools\MCPServer.Tool.GetTime.pas"/>
         <DCCReference Include="Tools\MCPServer.Tool.ListFiles.pas"/>
         <DCCReference Include="Tools\MCPServer.Tool.Calculate.pas"/>
-        <DCCReference Include="Resources\MCPServer.Resource.Logs.pas"/>
-        <DCCReference Include="Resources\MCPServer.Resource.Project.pas"/>
+        <DCCReference Include="Resources\MCPServer.Resource.Logs.pas">
+            <Form>,
+  MCPServer.Resource.Project in &apos;Resources\MCPServer.Resource.Project.pas&apos;</Form>
+        </DCCReference>
         <BuildConfiguration Include="Base">
             <Key>Base</Key>
         </BuildConfiguration>
