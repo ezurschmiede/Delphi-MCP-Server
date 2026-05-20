@@ -1,4 +1,4 @@
-unit MCPServer.Settings;
+﻿unit MCPServer.Settings;
 
 interface
 
@@ -21,9 +21,8 @@ type
     FSSLCertFile: string;
     FSSLKeyFile: string;
     FSSLRootCertFile: string;
-    FSettingsFile: string;
     function GetProtocol: string;
-
+  protected
     procedure LoadDefaults;
   public
     constructor Create; virtual;
@@ -36,7 +35,6 @@ type
     property Endpoint: string read FEndpoint write FEndpoint;
     property CorsEnabled: Boolean read FCorsEnabled write FCorsEnabled;
     property CorsAllowedOrigins: string read FCorsAllowedOrigins write FCorsAllowedOrigins;
-    property SettingsFile: string read FSettingsFile;
     property SSLEnabled: Boolean read FSSLEnabled write FSSLEnabled;
     property SSLCertFile: string read FSSLCertFile write FSSLCertFile;
     property SSLKeyFile: string read FSSLKeyFile write FSSLKeyFile;
@@ -53,6 +51,8 @@ type
 
     procedure LoadFromFile;
     procedure SaveToFile;
+
+    property SettingsFile: string read FSettingsFile;
   end;
 
 implementation
