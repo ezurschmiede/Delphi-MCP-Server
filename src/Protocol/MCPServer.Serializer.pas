@@ -41,6 +41,8 @@ type
   end;
 
 implementation
+uses
+  DateUtils;
 
 { TMCPSerializer }
 
@@ -163,7 +165,25 @@ begin
       if JsonValue is TJSONNumber then
         Result := (JsonValue as TJSONNumber).AsDouble
       else
+      if (RttiType.Handle = TypeInfo(TDateTime)) or (RttiType.Handle = TypeInfo(TDate)) then
+      begin
+        var Value: TDateTime;
+        if TryISO8601ToDate(JsonValue.Value, Value, false) then
+          Result := Value
+        else
+          Result := MinDateTime;
+      end else
+      if (RttiType.Handle = TypeInfo(TTime)) then
+      begin
+        var Value: TDateTime;
+        if TryStrToTime(JsonValue.Value, Value, FormatSettings.Invariant) then
+          Result := Value
+        else
+          Result := MinDateTime;
+      end else
+      begin
         Result := StrToFloatDef(JsonValue.Value, 0, FormatSettings.Invariant);
+      end;
         
     tkString, tkLString, tkWString, tkUString:
       Result := JsonValue.Value;
@@ -238,7 +258,17 @@ begin
       Result := TJSONNumber.Create(Value.AsInt64);
       
     tkFloat:
-      Result := TJSONNumber.Create(Value.AsExtended);
+      begin
+        if (RttiType.Handle = TypeInfo(TDateTime)) or (RttiType.Handle = TypeInfo(TDate)) then
+        begin
+          Result := TJSONString.Create(DateToISO8601(Value.AsType<TDateTime>, false));
+        end else
+        if (RttiType.Handle = TypeInfo(TTime)) then
+        begin
+          Result := TJSONString.Create(TimeToStr(Value.AsType<TTime>, FormatSettings.Invariant));
+        end else
+          Result := TJSONNumber.Create(Value.AsExtended);
+      end;
       
     tkString, tkLString, tkWString, tkUString:
       Result := TJSONString.Create(Value.AsString);

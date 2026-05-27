@@ -11,7 +11,7 @@ uses
 type
   TMCPSchemaGenerator = class
   private
-    class function GetJsonTypeFromRttiType(RttiType: TRttiType): string;
+    class function GetJsonTypeFromRttiType(RttiType: TRttiType; out TypeFormat: String): string;
     class function GetPropertyJsonName(Prop: TRttiProperty; RType: TRttiType): string;
     class function IsRequiredProperty(Prop: TRttiProperty): Boolean;
   public
@@ -49,26 +49,48 @@ begin
         var PropSchema := TJSONObject.Create;
         Properties.AddPair(JsonName, PropSchema);
 
-        var JsonType := GetJsonTypeFromRttiType(RttiProp.PropertyType);
+        var JsonTypeFormat := '';
+        var JsonType := GetJsonTypeFromRttiType(RttiProp.PropertyType, JsonTypeFormat);
         PropSchema.AddPair('type', JsonType);
 
         if JsonType = 'array' then
-          PropSchema.AddPair('items', TJSONObject.Create);
+        begin
+          var items := TJSONObject.Create;
+          PropSchema.AddPair('items', items);
+
+          if RttiProp.PropertyType is TRttiDynamicArrayType then
+          begin
+            var JsonElTypeFormat := '';
+            var JsonElType := GetJsonTypeFromRttiType(TRttiDynamicArrayType(RttiProp.PropertyType).ElementType, JsonElTypeFormat);
+
+            items.AddPair('type', JsonElType);
+
+            if JsonElTypeFormat.Length > 0 then
+              items.AddPair('format', JsonElTypeFormat);
+          end;
+        end;
 
         for var Attr in RttiProp.GetAttributes do
         begin
           if Attr is SchemaDescriptionAttribute then
           begin
             PropSchema.AddPair('description', SchemaDescriptionAttribute(Attr).Description);
-          end
-          else if Attr is SchemaEnumAttribute then
+          end else
+          if Attr is SchemaEnumAttribute then
           begin
             var EnumArray := TJSONArray.Create;
             for var Value in SchemaEnumAttribute(Attr).Values do
               EnumArray.Add(Value);
             PropSchema.AddPair('enum', EnumArray);
+          end else
+          if Attr is SchemaFormatAttribute then
+          begin
+            JsonTypeFormat := SchemaFormatAttribute(Attr).Format;
           end;
         end;
+
+        if JsonTypeFormat.Length > 0 then
+          PropSchema.AddPair('format', JsonTypeFormat);
 
         if IsRequiredProperty(RttiProp) then
           RequiredArray.Add(JsonName);
@@ -89,11 +111,34 @@ begin
   Result := GenerateSchema(Instance.ClassType);
 end;
 
-class function TMCPSchemaGenerator.GetJsonTypeFromRttiType(RttiType: TRttiType): string;
+class function TMCPSchemaGenerator.GetJsonTypeFromRttiType(RttiType: TRttiType; out TypeFormat: String): string;
 begin
+  TypeFormat := '';
+
   case RttiType.TypeKind of
-    tkInteger, tkInt64: Result := 'number';
-    tkFloat: Result := 'number';
+    tkInteger, tkInt64: Result := 'integer';
+    tkFloat:
+      begin
+        if RttiType.Handle = TypeInfo(TDateTime) then
+        begin
+          TypeFormat := 'date-time';
+          Result := 'string';
+        end else
+        if RttiType.Handle = TypeInfo(TDate) then
+        begin
+          TypeFormat := 'date';
+          Result := 'string';
+        end else
+        if RttiType.Handle = TypeInfo(TTime) then
+        begin
+          TypeFormat := 'time';
+          Result := 'string';
+        end else
+        begin
+          Result := 'number';
+        end;
+      end;
+
     tkString, tkLString, tkWString, tkUString: Result := 'string';
     tkEnumeration:
       if RttiType.Name = 'Boolean' then
