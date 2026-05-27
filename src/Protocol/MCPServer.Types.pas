@@ -37,6 +37,14 @@ type
     property Values: TArray<string> read FValues;
   end;
 
+  SchemaFormatAttribute = class(TCustomAttribute)
+  private
+    FFormat: string;
+  public
+    constructor Create(const AFormat: string);
+    property Format: string read FFormat;
+  end;
+
   TMCPToolsCapability = class;
   
   IMCPCapabilityManager = interface
@@ -221,6 +229,14 @@ constructor EMCPStatusError.Create(const AHTTPStatus: Smallint; const AErrorMsg:
 begin
   inherited Create(AErrorMsg);
   FHTTPStatus := AHTTPStatus;
+end;
+
+{ SchemaFormatAttribute }
+
+constructor SchemaFormatAttribute.Create(const AFormat: string);
+begin
+  inherited Create;
+  FFormat := AFormat;
 end;
 
 end.
