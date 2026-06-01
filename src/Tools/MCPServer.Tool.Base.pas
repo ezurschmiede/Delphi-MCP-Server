@@ -1,10 +1,11 @@
-unit MCPServer.Tool.Base;
+﻿unit MCPServer.Tool.Base;
 
 interface
 
 uses
   System.SysUtils,
   System.Rtti,
+  JsonDataObjects,
   System.JSON,
   MCPServer.Types;
 
@@ -71,6 +72,8 @@ type
     FDescription: string;
     FSession: TMCPCustomSession;
     function ExecuteWithParams(const Params: T): R;virtual; abstract;
+    procedure FillOutputSchemaProperties(ASchemaProperties: TJSONObject); virtual;
+    function CreateJsonTypeObj(const ATypeName: String; const ADescription: String = ''): TJSONObject;
   public
     constructor Create; virtual;
     constructor CreateForSession(const Session: TMCPCustomSession); virtual;
@@ -78,13 +81,10 @@ type
     function GetName: string;
     function GetTitle: string;
     function GetDescription: string;
-    function GetInputSchema: TJSONObject;
-    function GetOutputSchema: TJSONObject;
+    function GetInputSchema: TJSONObject; virtual;
+    function GetOutputSchema: TJSONObject; virtual;
     function Execute(const Arguments: TJSONObject): TValue;
   end;
-
-
-
 
 implementation
 
@@ -215,9 +215,35 @@ begin
   try
     Response := ExecuteWithParams(ParamsInstance);
     try
-      JsonObj := TJSONObject.Create;
-      TMCPSerializer.Serialize(Response, JsonObj);
-      result := TValue.From(JsonObj);
+      if Response is TJSONObject then
+      begin
+        JsonObj := TJSONObject(Response);
+        Response := nil;
+      end else
+      if Response is TJSONArray then
+      begin
+        JsonObj := TJSONObject.Create;
+        JsonObj.AddPair('count', TJSONArray(Response).Count.ToString);
+        JsonObj.AddPair('items', TJSONArray(Response));
+        Response := nil;
+      end else
+      if Response is JsonDataObjects.TJsonObject then
+      begin
+        JsonObj := TJSONObject.ParseJSONValue(JsonDataObjects.TJsonObject(Response).ToJson) as TJSONObject; // ToDo: investigate more perfomant way to "clone" JsonDataObjects.TJsonObject to System.JSON.TJsonObject
+      end else
+      if Response is JsonDataObjects.TJsonArray then
+      begin
+        JsonObj := TJSONObject.Create;
+        var ValueItems := TJsonArray.ParseJSONValue(JsonDataObjects.TJsonArray(Response).ToJSON) as TJsonArray;  // ToDo: investigate more perfomant way to "clone" JsonDataObjects.TJsonArray to System.JSON.TJsonArray
+        JsonObj.AddPair('count', ValueItems.Count.ToString);
+        JsonObj.AddPair('items', ValueItems);
+      end else
+      begin
+        JsonObj := TJSONObject.Create;
+        TMCPSerializer.Serialize(Response, JsonObj);
+      end;
+
+      Result := TValue.From(JsonObj);
     finally
       Response.Free;
     end;
@@ -249,9 +275,50 @@ begin
     Result := FName;
 end;
 
+function TMCPToolBase<T, R>.CreateJsonTypeObj(const ATypeName: String; const ADescription: String = ''): TJSONObject;
+begin
+  Result := TJSONObject.Create;
+  Result.AddPair('type', ATypeName);
+
+  if ADescription.Length > 0 then
+    Result.AddPair('description', ADescription);
+end;
+
+procedure TMCPToolBase<T, R>.FillOutputSchemaProperties(ASchemaProperties: TJSONObject);
+begin
+  //
+end;
+
 function TMCPToolBase<T, R>.GetOutputSchema: TJSONObject;
 begin
-  Result := TMCPSchemaGenerator.GenerateSchema(R);
+  if (R = TJSONObject) or (R = JsonDataObjects.TJsonObject) then
+  begin
+    Result := CreateJsonTypeObj('object');
+
+    var JsonProp := TJSONObject.Create;
+    FillOutputSchemaProperties(JsonProp);
+    Result.AddPair('properties', JsonProp);
+  end else
+  if (R = TJSONArray) or (R = JsonDataObjects.TJsonArray) then
+  begin
+    Result := CreateJsonTypeObj('object');
+
+    var JsonProp := TJSONObject.Create;
+    Result.AddPair('properties', JsonProp);
+
+    JsonProp.AddPair('count', CreateJsonTypeObj('integer', 'count of items in list'));
+
+    var JsonPropItems := CreateJsonTypeObj('array', 'list with items');
+    JsonProp.AddPair('items', JsonPropItems);
+
+    var JsonPropItemType := CreateJsonTypeObj('object');
+    JsonPropItems.AddPair('items', JsonPropItemType);
+
+    var JsonPropItemTypeProp := TJSONObject.Create;
+    FillOutputSchemaProperties(JsonPropItemTypeProp);
+    JsonPropItemType.AddPair('properties', JsonPropItemTypeProp);
+  end else
+    Result := TMCPSchemaGenerator.GenerateSchema(R);
 end;
 
 end.
