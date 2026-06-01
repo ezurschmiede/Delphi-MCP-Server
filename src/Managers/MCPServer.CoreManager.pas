@@ -30,7 +30,7 @@ type
     FResourcesManager: TMCPResourcesManager;
     FProcessor: TMCPJsonRpcProcessor;
   public
-    constructor Create(const ACoreManager: TMCPSessionCoreManager);
+    constructor Create(const ACoreManager: TMCPSessionCoreManager); virtual;
     destructor Destroy; override;
 
     procedure Init(const SessionId: String; const Params: TJSONObject; const AuthHeader, RemoteIP: string); virtual;
