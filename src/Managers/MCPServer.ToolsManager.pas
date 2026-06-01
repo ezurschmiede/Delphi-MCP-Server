@@ -219,7 +219,7 @@ begin
   var ResultValue : TValue;
 
   if FTools.TryGetValue(ToolName, Tool) then
-    resultValue := ExecuteTool(Tool, Arguments)
+    ResultValue := ExecuteTool(Tool, Arguments)
   else
     ResultValue := TValue.From('Error: Tool not found: ' + ToolName);
     
