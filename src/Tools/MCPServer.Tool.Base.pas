@@ -74,7 +74,7 @@ type
     FSession: TMCPCustomSession;
     function ExecuteWithParams(const Params: T): R;virtual; abstract;
     procedure FillOutputSchemaProperties(ASchemaProperties: TJSONObject); virtual;
-    function CreateJsonTypeObj(const ATypeName: String; const ADescription: String = ''; const AEnumSet: String): TJSONObject;
+    function CreateJsonTypeObj(const ATypeName: String; const ADescription: String = ''; const AEnumSet: String = ''): TJSONObject;
   public
     constructor Create; virtual;
     constructor CreateForSession(const Session: TMCPCustomSession); virtual;
