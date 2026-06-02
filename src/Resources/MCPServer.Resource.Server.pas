@@ -98,12 +98,12 @@ end;
 
 class procedure TServerStatusResource.ConnectionOpened;
 begin
-  InterlockedIncrement64(FActiveConnections);
+  InterlockedIncrement(FActiveConnections);
 end;
 
 class procedure TServerStatusResource.ConnectionClosed;
 begin
-  InterlockedDecrement64(FActiveConnections);
+  InterlockedDecrement(FActiveConnections);
 end;
 
 constructor TServerStatusResource.Create;
