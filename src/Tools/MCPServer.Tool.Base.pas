@@ -3,6 +3,7 @@
 interface
 
 uses
+  System.Classes,
   System.SysUtils,
   System.Rtti,
   JsonDataObjects,
@@ -73,7 +74,7 @@ type
     FSession: TMCPCustomSession;
     function ExecuteWithParams(const Params: T): R;virtual; abstract;
     procedure FillOutputSchemaProperties(ASchemaProperties: TJSONObject); virtual;
-    function CreateJsonTypeObj(const ATypeName: String; const ADescription: String = ''): TJSONObject;
+    function CreateJsonTypeObj(const ATypeName: String; const ADescription: String = ''; const AEnumSet: String): TJSONObject;
   public
     constructor Create; virtual;
     constructor CreateForSession(const Session: TMCPCustomSession); virtual;
@@ -275,13 +276,31 @@ begin
     Result := FName;
 end;
 
-function TMCPToolBase<T, R>.CreateJsonTypeObj(const ATypeName: String; const ADescription: String = ''): TJSONObject;
+function TMCPToolBase<T, R>.CreateJsonTypeObj(const ATypeName: String; const ADescription: String; const AEnumSet: String): TJSONObject;
 begin
   Result := TJSONObject.Create;
   Result.AddPair('type', ATypeName);
 
   if ADescription.Length > 0 then
     Result.AddPair('description', ADescription);
+
+  if Length(AEnumSet) > 0 then
+  begin
+    var List := TStringList.Create;
+    try
+      List.CommaText := AEnumSet;
+
+      var JA := TJSONArray.Create;
+      Result.AddPair('enum', JA);
+
+      for var i := 0 to List.Count-1 do
+      begin
+        JA.Add(List[i]);
+      end;
+    finally
+      List.Free;
+    end;
+  end;
 end;
 
 procedure TMCPToolBase<T, R>.FillOutputSchemaProperties(ASchemaProperties: TJSONObject);
