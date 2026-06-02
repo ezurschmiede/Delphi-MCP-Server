@@ -94,18 +94,17 @@ end;
 
 class procedure TServerStatusResource.IncrementRequestCount;
 begin
-  Inc(FRequestCount);
+  InterlockedIncrement64(FRequestCount);
 end;
 
 class procedure TServerStatusResource.ConnectionOpened;
 begin
-  Inc(FActiveConnections);
+  InterlockedIncrement64(FActiveConnections);
 end;
 
 class procedure TServerStatusResource.ConnectionClosed;
 begin
-  if FActiveConnections > 0 then
-    Dec(FActiveConnections);
+  InterlockedDecrement64(FActiveConnections);
 end;
 
 constructor TServerStatusResource.Create;
